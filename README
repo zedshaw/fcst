@@ -1,0 +1,281 @@
+== This Is A Half-Finished Pile Of Crap
+
+I started this as a way to learn Ruby, and it was fun, but then
+I got bored with it and moved on.  The only interesting part is
+probably the non-linear suffix array delta, which did binary diffs
+using a suffix array and was really fast (although probably had bugs).
+
+== Fast Change Set Tool
+
+FastCST is a change set tool I created to experiment with
+ideas in change management, distributed development, and alternatives to existing
+tools.
+
+== Current Features
+
+FastCST is an evolving tool that you probably shouldn't use quite yet for
+anything serious.  It does support a wide range of features, but since I
+started in in March 2005 it's not fully tested yet.
+
+The current laundry list of features are:
+
+* Complete changesets that are very simple by design and encode complete
+  cohesive changes.
+* Extensible meta-data for changesets.
+* A simple to use repository that should be easy for any other languages to read.
+* All revisions are uniquely identified by a UUID to avoid clashing.
+* Ability to undo any applied revision.
+* You can publish your repository to an FTP site efficiently.
+* Directly share your repository for quick small-scale sharing without FTP.
+* Anyone can download the latest revisions from an FTP or HTTP site.
+* Send/receive changesets through e-mail including human readable meta-data.
+* Transaction oriented operation.
+* Remarkably fast operation considering there's been no optimization done and it's written in Ruby.
+* A reasonable shell prompt so you don't have to type 'fcst' in front of everything.
+* A working plugins feature letting you implement your own commands, with an example
+  command that creates release archives.
+* A working "triggers" feature so you can easily wrap commands with your own logic.
+* Ability to attach external files to distribute with your changesets (not tested much).
+* Disposition references so you can reference bug trackers, web sites, mailing list posts, etc.
+* 95% pure Ruby.
+* A unique delta algorithm that uses suffix arrays and produces smaller deltas than most other
+  delta algorithms without sacrificing speed much.
+* A painstakingly consistent command interface with extensive help for each option.
+* The beginning of a merge feature that let's you merge without needing to reference history.
+* An "index" command that will use suffix arrays to index your files and let you find where
+  text is mentioned.  This will turn into an optimization and an advanced search feature.
+* Simple and consistent aborting and undo so you can trash your source in the comfort of your
+  own stupidity and still recover.
+* Completely redesigned YAML format that avoids using !ruby object loading and uses only
+  native types found in all languages.  This avoids some security concerns, but YAML needs
+  a means of telling it to NOT load arbitrary objects.  Still searching, but I may have to 
+  dump YAML if I can't fix it.
+* Makes a reasonable attempt to deal with symlinks and directories.  It treats directories
+  as out of band data and simply fixes them up at the end of the application process.  This
+  is very handy since you can just glance at the meta-data to find out if someone is deleting
+  your favorite source tree.
+
+
+== Missing Features
+
+There's still quite a lot of stuff missing that I want to put into FastCST, but these are
+the big ones that it needs before it's useful:
+
+* Merging is implemented, but conflict resolution is not yet.  It currently will not let
+  you resolve conflicts and refuses to do the merge.
+* Recovering individual files from the repository.  This is needed to get conflicts working.
+* Better security protections like not using YAML for the journal file or somehow restricting
+  what objects can be loaded (that thing is like giving a toddler a shot-gun).
+* Digitally signed and verified revisions so people can confirm who sent the revision.
+* Improved safety checks.  It's pretty good now, but things like applying a delta is still
+  not as safe as I'd like.
+
+Some of the things I'd like to implement are:
+
+* Connecting with FAM or Dazuko to let FastCST track your actions and warn about bad stuff.
+* Flexible command aliasing that lets you create alternative commands.
+* Using mDNS to let people quickly and painlessly find repositories and other developers.
+* Hooking into DamageControl and the RSCM library.
+
+If you have any suggestions for these or for other features you want then go ahead and
+contact me at zedshaw AT zedshaw DOT com.
+
+== Security Warnings
+
+DO NOT ACCEPT CHANGESETS FROM PEOPLE YOU DO NOT KNOW.  Since there's no digital signature
+capabilities this means nobody except yourself.  The reason why is because there are many
+places whe YAML is used, but YAML doesn't provide a mechanism for restricting what can
+be loaded when unmarshalling Ruby structures.  It would be no problem for someone to create
+a meta-data or journal file with a bit of code to destroy your world.
+
+Another really big caution is please don't use this thing on any source you feel is really
+important.  It is still mostly ALPHA stage so there's a very good chance that you'll destroy
+your world if you use it.  Especially important is that the delta algorithm is fairly new
+and the suffix array library needs to be audited more.
+
+Finally, it uses POP3 and FTP with bare passwords.  This is mostly because I'm not sure how
+to get the Net::POP and Net::FTP stuff to use APOP and/or SSL.  For the most part I'm just
+tunneling the protocols through SSH to my servers.
+
+
+== License
+
+Copyright (C) 2004-2005  Zed A. Shaw
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+
+
+=== Building
+
+The script that does everything is called "fcst", and the Rakefile is setup to build
+a completely stand-alone version.  This is the version that you can run with only a
+basic ruby 1.8 install rather than installing all the files in your Ruby directories.
+
+Building the fcst script this way requires simply typing "rake" in the source
+directory.  When the build is done you'll have a single ruby script in build/fcst.
+
+
+==== Debian Notes
+
+The build has been tested on ArchLinux and Debian, but to get it to build or 
+work under Debian you'll need to do some magic apt-get work:
+
+1.  Remove anything remotely related to ruby.  The package layout changed recently
+    so this is necessary to get it to reinstall correctly.
+2.  apt-get install ruby (not ruby1.8).  If you're on the right version of Debian
+    (of the 100) you should get the 1.8 stuff with all the goodies.
+3.  Finally make sure you have these packages as well:
+    * rake
+    * ruby1.8-dev (yes, specify the 1.8 this time)
+    * libtest-unit-ruby (no 1.8 this time)
+
+Once you do this you can then use the "rake" command to build everything and get
+your stand-alone build/fcst script.
+
+
+=== Installing
+
+You can also "install" the fcst script in the normal ruby way using the setup.rb 
+script.  This installs the required libraries in your Ruby installation's directories
+and thus requires root access.  
+
+The first thing you need to do is go into the software directory and install the 
+PluginFactory, ruby-guid, and rubymail tar.gz sources you find.  Each project has
+its own install method, but most use the standard setup.rb or similar.  Read their
+instructions.
+
+Then installing is done with "ruby setup.rb" in the FastCST source directory.  This
+will install the fcst script in your standard bin directory and the required library
+files in your standard Ruby setup.  You'll probably need root access for this.
+
+
+== Getting Started
+
+FastCST is designed to be easy to use without restricting your ability to
+get stuff done.  This means that most commands are very simple and follow
+a consistent pattern of operation with extensive help.  It also means that,
+if you don't like a command or need an additional feature then you can easily
+write your own.
+
+The fcst script has two modes of operation:
+
+* shell mode -- This lets you run commands in a small little shell so that
+  you don't have to keep typing 'fcst' before you do things.
+* command line mode -- You can also just put the command after the fcst
+  script in your normal shell and it will run it directly.
+   
+The current shell is very primitive and doesn't support readline or many other
+nice features.
+
+If you want to get a list of commands then type 'help'.  It actually isn't 
+a command, but the error message for giving an invalid command is to print
+a list of all the commands available.
+
+
+=== Available Commands
+
+FastCST currently supports the following commands:
+
+* abort -- Aborts any currently in-process revision
+* apply -- Applies a child revision to the current revision 
+* attach -- Attaches a file to the current in-process revision 
+* begin -- Starts a new in-process revision
+* disp -- Adds a "disposition" reference to the in-process revision
+* env -- Lists, searches, sets, and deletes environment variables
+* finish -- Finalizes an in-process revision
+* get -- Gets the latest published revisions from a URL
+* init -- Sets up a new .fastcst repository in the current directory
+* list -- Let's you list revisions and your current revision path
+* log -- Adds a log line to the in-process revision (think Change Log)
+* publish -- Publishes your repository to an FTP site so others can use get
+* read -- Reads your "pending revision inbox" which contains received revisions
+* recv -- Receives revisions from a POP3 account and stores them for read
+* send -- Sends a chosen revision to a chosen person
+* show -- Shows information about a revision, or the in-process revision
+* status -- Gives a quick status of the current state of things
+* undo -- Rolls back the most recent apply
+* merge -- Basic revision merging.  Does not handle conflicts yet (will abort).
+* index -- Basic suffix array based searching through files.
+
+All commands have a -h option, and will also complain if everything isn't perfect
+when you run them.  To get the list of commands just you can use ? or help.
+
+
+=== Your First Repository
+
+FastCST uses a "project local" repository design.  This means that, rather
+than keeping everything in one master directory, it creates one directory
+for each project.  The directory is called .fastcst and simply sits at the
+top of your source files.
+
+What we're going to do is actually get the latest version of FastCST using
+fcst.  Make sure you've downloaded the script or built your own and then 
+do this:
+
+1.  Create an empty directory and cd into it.
+2.  Run fcst
+3.  > init -e <your e-mail> -n <your name> -p fastcst
+4.  > get -u http://www.zedshaw.com/fastcst/repository
+5.  > list
+6.  > show -r root
+7.  > apply -r root
+
+You now have the root revision of the FastCST 0.6 stuff.  The list and show commands
+aren't necessary, just a good idea so you don't apply something that will cause you
+damage.
+
+One current limit of fastcst is that when you get a remote repository it doesn't
+ask you to apply all the revisions so you can sync up.  I'm holding off on that
+feature until I get the merging algorithm done.  Until then, feel free to 
+apply the patches and play with the apply/merge/undo stuff.
+
+==== Other Things To Try
+
+Here's some other stuff for you to try out:
+
+1.  You do not need to have an empty directory to put files under fcst control.
+2.  Make a changeset by using begin/finish.  You can run begin, make some changes, and then
+    run finish to create the revision.
+3.  Most commands that take a -r also take a -i so you can be specific about which revision
+    to use.  Revision names are mostly just for weak humans who can't handle uuids.
+4.  Use list, show, and status religiously to figure out what's going on.
+5.  You can easily send a revision to someone else.  Use send to give them one, and then
+    recv to get them from a POP3 account.  It works like e-mail where they are downloaded,
+    and then you use 'read' to pick which ones you really want added to your repository.
+6.  Most commands will look for settings in the environment and use them as defaults.
+    Try running a command without parameters and read the lines that talk about not finding
+    a setting in the environment.  For example, recv will look for 'POP3 Host' so you can
+    do "env -s 'POP3 Host' -v mail.myserver.com:110" and it will never bug you again.  If you
+    need to use a different one temporarily, then specifying the option will override the
+    environment setting.
+7.  If you've got an FTP server and web server to play with, then you can try the publish/get
+    commands.
+8.  All commands take a -h option so you can get extensive help.
+9.  Try the index command.  Run it once without options to build the index, then check -h.
+
+=== More Detailed Documentation
+
+This README just gives you some quick advice to get you started.  Better
+documentation is available at http://www.zedshaw.com/projects/fastcst including
+the full API documentation (which is also in doc/rdoc), tutorials, and several
+other nice things.
+
+=== Reporting Bugs
+
+Feel free to contact me at zedshaw AT zedshaw DOT com with any bug reports you have.
+You may also find the latest release information at 
+http://www.zedshaw.com/projects/fastcst as well as contact me on irc.freenode.org
+in the #ruby-lang or #rubyonrails channel.
+

@@ -1,0 +1,228 @@
+Right now FastCST has the base features, but is a little annoying since every change
+requires a named revision no matter how small it is.  Instead I'd like to organize it
+so that there's less granularity on revision names, and that changesets are just stored
+in order.
+
+I think it could go with a directory structure named/organized after the revisions, 
+and then remove the ability to give specific revision names and instead adopt a 
+consistent dot based numbering scheme.  Inside each directory is a list of the
+various changesets that make up that revision so far.
+
+The revisions could go in one flat structure:
+
+1.0
+1.0.1
+2.1
+2.1.1
+2.1.2
+2.1.2.1
+
+Each dot represents a branch of the revision into a new set of
+work.  Sine only numbers are used it removes the burden of
+needing to name revisions.  It also means they don't need to be
+in a directory hierarchy since we actually want revisions to have
+unique names across the entire structure.  This simple structure
+is also easy to compare with other structures to do syncs.
+
+Each revision directory would then contain all of the changesets
+that make up that revision as received from all the developers.
+Right now changesets are stored by their UUID which works out great
+since they can't clash.  The only problem with the UUID naming 
+scheme is that they aren't ordered which we'd want in order to
+simplify merging and syncing.  To implement this we'd want to have
+a Unix time stamp prefix each changeset UUID:
+
+1112102676.48476--ff3d615c-38e5-2bf8-1589-dff5659682f5
+1112102707.24184--d88d56cd-b4a3-4af0-be8a-09f0fb789a7a
+1112103504.01980--4ff6a063-48b2-7c9a-cc2c-3c6841b07c85
+
+As you can see this already sorts by date order and with
+the UUID and date combined it's pretty much always going to
+be unique.  Sorting it would be simple and could be done
+based on the numeric order alone, but could get fancier
+by parsing each part.
+
+Ok, so lets say a revision that two people own has these
+changes in them:
+
+Frank's:
+F1: 1112105052.46076--4cee0abb-9ec5-41b4-85a6-089d0456ae93
+F2: 1112105450.94844--4290b6cd-82a5-005f-c8c6-e658f70ef72d
+F3: 1114192660.86896--87ae5d2e-36e4-6207-4e10-ac960cb421b3
+
+Alan's:
+A1: 1113707421.90834--68b3d073-82dd-7347-21c1-c8f39e84ec6c
+A2: 1114193042.29329--3667f14e-1122-6dbe-c580-0a71b43c19f0
+
+And Alan wants to merge.  Since we have time information
+we can do more than just try to mash the revisions together,
+we can actually order them and apply them in order to merge.
+
+F1: 1112105052.46076--4cee0abb-9ec5-41b4-85a6-089d0456ae93
+F2: 1112105450.94844--4290b6cd-82a5-005f-c8c6-e658f70ef72d
+A1: 1113707421.90834--68b3d073-82dd-7347-21c1-c8f39e84ec6c
+F3: 1114192660.86896--87ae5d2e-36e4-6207-4e10-ac960cb421b3
+A2: 1114193042.29329--3667f14e-1122-6dbe-c580-0a71b43c19f0
+
+Alan is at A2, but needs to get Franks F1-F3.  Problem is
+Frank made some changes before Alan and then after Alan.
+To properly merge is going to be a pain in the ass.  F1 and F2
+will work since they'll be based on the root of the revision.
+As soon as we hit A1 we could have problems and would need
+conflict resolution.  F3 has a higher probability of failing
+since it was based on F2 changes not F2+A1 changes.  A2 has
+an even higher prob of failing.
+
+Now let's see what happens if merging the two states without
+time information for Alan:
+
+A1: 1113707421.90834--68b3d073-82dd-7347-21c1-c8f39e84ec6c
+A2: 1114193042.29329--3667f14e-1122-6dbe-c580-0a71b43c19f0
+F1: 1112105052.46076--4cee0abb-9ec5-41b4-85a6-089d0456ae93
+F2: 1112105450.94844--4290b6cd-82a5-005f-c8c6-e658f70ef72d
+F3: 1114192660.86896--87ae5d2e-36e4-6207-4e10-ac960cb421b3
+
+A1 and A2 are already part of the state so no problems, just
+like before.  F1, F2, and F3 all have some probability of
+failure that increases as each is applied.
+
+Now, the question is, what's the probability of failure?
+Could we measure this somehow using existing systems?
+
+
+=== Time And Already Synced ===
+
+Most likely if Frank and Alan aren't syncing up too often
+then they'll have higher probabilities in their merge. 
+But what if they're syncing pretty regularly.  Let's say
+Frank and Alan synced as they worked and both have a new
+Revision.  The > shows where they last synced/merged.
+
+Frank's:
+F1: 1112105052.46076--4cee0abb-9ec5-41b4-85a6-089d0456ae93
+F2: 1112105450.94844--4290b6cd-82a5-005f-c8c6-e658f70ef72d
+A1: 1113707421.90834--68b3d073-82dd-7347-21c1-c8f39e84ec6c
+F3: 1114192660.86896--87ae5d2e-36e4-6207-4e10-ac960cb421b3
+>A2: 1114193042.29329--3667f14e-1122-6dbe-c580-0a71b43c19f0
+F4: ...
+
+Alan's:
+F1: 1112105052.46076--4cee0abb-9ec5-41b4-85a6-089d0456ae93
+F2: 1112105450.94844--4290b6cd-82a5-005f-c8c6-e658f70ef72d
+A1: 1113707421.90834--68b3d073-82dd-7347-21c1-c8f39e84ec6c
+F3: 1114192660.86896--87ae5d2e-36e4-6207-4e10-ac960cb421b3
+>A2: 1114193042.29329--3667f14e-1122-6dbe-c580-0a71b43c19f0
+A3: ...
+
+And let's say that F4 was created before A3.  Now Alan needs to merge in 
+Frank's changes to create:
+
+F1: 1112105052.46076--4cee0abb-9ec5-41b4-85a6-089d0456ae93
+F2: 1112105450.94844--4290b6cd-82a5-005f-c8c6-e658f70ef72d
+A1: 1113707421.90834--68b3d073-82dd-7347-21c1-c8f39e84ec6c
+F3: 1114192660.86896--87ae5d2e-36e4-6207-4e10-ac960cb421b3
+>A2: 1114193042.29329--3667f14e-1122-6dbe-c580-0a71b43c19f0
+F4: ...
+A3: ...
+
+Ok, no problems, they both were at A2 in their state, so F4
+applies no problems.  A3 then has a probability of failure
+because it was based on A2 not on F4.
+
+=== Result of a Merge ===
+
+So, after this merge, what happens?  Let's say Frank merges
+Alan's changes in, and Alan merges Frank's in at the same time:
+
+F1: 1112105052.46076--4cee0abb-9ec5-41b4-85a6-089d0456ae93
+F2: 1112105450.94844--4290b6cd-82a5-005f-c8c6-e658f70ef72d
+A1: 1113707421.90834--68b3d073-82dd-7347-21c1-c8f39e84ec6c
+F3: 1114192660.86896--87ae5d2e-36e4-6207-4e10-ac960cb421b3
+A2: 1114193042.29329--3667f14e-1122-6dbe-c580-0a71b43c19f0
+F4> F1,F2,A1,F3,A2
+
+Alan's:
+F1: 1112105052.46076--4cee0abb-9ec5-41b4-85a6-089d0456ae93
+F2: 1112105450.94844--4290b6cd-82a5-005f-c8c6-e658f70ef72d
+A1: 1113707421.90834--68b3d073-82dd-7347-21c1-c8f39e84ec6c
+F3: 1114192660.86896--87ae5d2e-36e4-6207-4e10-ac960cb421b3
+A2: 1114193042.29329--3667f14e-1122-6dbe-c580-0a71b43c19f0
+A3> F1,F2,A1,F3,A2
+
+This basically follows my belief that a merge is basically
+an edit and should create a new revision.  Problem is that
+F4 and A3 are basically equiv. So if Frank then tries
+to merge A3 in, it's pointless (it'd do nothing).  The complexity
+here then becomes that both developers most likely had to
+touch code and clean things up, so this is your classic conflict.
+
+The real solution here is that only one of the developers should
+do this.  They should talk, and one shuts the fuck up while the
+other does the work.  Detecting this problem should be easy
+in FastCST rather than something left to the merge algorithm.
+
+But let's say these guys are really stubborn assholes and they
+insist on Merging again.  Well, they'd get into a cycle of
+merge/publish/merge/publish.  It'd become a chasing problem
+until both of them do the exact same thing in their merges.
+In order to support this, the merge algorithm will still apply
+in order all changes, and when there's conflicts it'll report
+them for the developer to fix.
+
+=== Why Time and History ===
+
+Each changeset indicates how it relates to other changesets,
+so we could go to the most recent common changeset instead
+of keeping track of the last sync point.  Let's say things
+are organized like this:
+
+Frank:  F1->F2->A1->F3->(F4)
+Alan:  F1->F2->A1->F3->(A2)
+
+Alan wants to merge in Frank's stuff, so he has a problem since F4 is based on F3
+and so is his A2.  In this case, time would win out and we'd say (since Frank's is earlier)
+that we'd back-up to F3, apply F4, then merge in A2.  But let's say their
+two revisions diverge a whole lot:
+
+Frank:  F1->A1->F2->F3->(F4)
+Alan:  F1->F2->A1->F3->(A2)
+
+This can happen when Time isn't a factor, but with time this would be impossible.  A1 can't
+be based on F2 and F1 based on A1.  This is more likely:
+
+Frank:  F1->F2->F3->(F4)
+Alan:  F1->A1->F2->A2->F3->(A2)
+
+This situation is common when Alan is taking and Frank is not taking back while Alan makes changes
+between each pull.  Alan grabs F1, then makes A1, then merges in F2, and makes A2, and then merges in
+F3 to make A2.  If frank tries to merge this in then it'll be really weird based on time only. 
+Let's say Frank merges and time is used only.  It'd go like this:
+
+F1,A1,F2,A2,F3,F4,A2
+
+What a nightmare.  We'd have to go back to F1, merge in A1, then try F2, then merge A2. 
+The probability of failure at this point is incredible.
+
+But what's wrong with this situation really?  Again, developers not cooperating and 
+not thinking.  Alan can't have:  F1->A1->F2 because that means he's taken F1, created A1
+based on that, and then merged in F2 to create F2.  This isn't right, merging in F2
+with A1 would make *an entirely new changeset, basically A2*.  Basically Alan gets
+into this situation when time isn't included in the merge process.
+
+Let's see if we can fix this by including time.  Our rule will be this:
+
+1.  All changesets have timestamps and are ordered by those.
+2.  Changesets have a parent changeset and optional list of merged in changesets.
+3.  A merge always creates a new changeset.  It's considered a big edit.
+
+Let's try this to see how Alan might do it properly:
+
+Frank: F1
+Alan: F1
+Alan: F1->A2
+Frank: F1->F2
+Alan: F1->A2->BZZZ
+
+This is where Alan gets into trouble.  He's made changes F1 to make A2, so he needs to 
+merge in F2.  Now if we could do this:  F1->F2->A2 then we'd be set.  Another option
+is to F1->[A2+F2].

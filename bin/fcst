@@ -1,0 +1,16 @@
+#!/usr/bin/env ruby
+require 'fastcst/command'
+require 'fastcst/ui'
+
+
+if ARGV.length == 0
+    begin
+        UI::Shell.start
+    rescue
+        UI.failure :exception, $!
+    end
+else
+    # run the one command
+    CommandRegistry.instance.run ARGV
+end
+
